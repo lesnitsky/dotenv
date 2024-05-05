@@ -1,10 +1,13 @@
-import 'dart:io';
+part of './dotenv.dart';
 
-import 'package:meta/meta.dart';
+abstract class Parser {
+  /// Parses .env file contents into a [Map<String, String>].
+  Map<String, String> parse(Iterable<String> lines);
+}
 
 /// Creates key-value pairs from strings formatted as environment
 /// variable definitions.
-class Parser {
+class DefaultParser implements Parser {
   static const _singleQuot = "'";
   static const _keyword = 'export';
 
@@ -13,8 +16,8 @@ class Parser {
   static final _bashVar =
       new RegExp(r'(?:\\)?(\$)(?:{)?([a-zA-Z_][\w]*)+(?:})?');
 
-  /// [Parser] methods are pure functions.
-  const Parser();
+  /// [DefaultParser] methods are pure functions.
+  const DefaultParser();
 
   /// Substitutes $bash_vars in [val] with values from [env].
   @visibleForTesting

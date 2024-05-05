@@ -1,17 +1,31 @@
-/// Loads environment variables from a `.env` file.
+/// Loads environment variables from a `.env` file and merges with
+/// `Platform.environment`.
 ///
-/// ## usage
+/// ## usages
 ///
-/// Call [DotEnv.load] to parse the file(s).
-/// Read variables from the underlying [Map] using the `[]` operator.
+/// Use the default instance of [DotEnv] to read env vars:
+///
+///    import 'package:dotenv/dotenv.dart';
+///
+///    void main() {
+///      final myVar = DotEnv.instance['MY_VAR'];
+///    }
+///
+/// Use `DotEnv(parser)..load()` to create a `DotEnv` instance
+/// with a custom parser:
 ///
 ///     import 'package:dotenv/dotenv.dart';
 ///
+///     class CustomParser implements Parser {
+///       Map<String, String> parse(Iterable<String> lines) {
+///         // custom implementation
+///       }
+///     }
+///
 ///     void main() {
-///       var env = DotEnv(includePlatformEnvironment: true)
-///         ..load('path/to/my/.env');
-///       var foo = env['foo'];
-///       var homeDir = env['HOME'];
+///       final env = DotEnv(CustomParser())..load();
+///       final foo = env['foo'];
+///       final homeDir = env['HOME'];
 ///       // ...
 ///     }
 ///
@@ -19,4 +33,4 @@
 ///
 ///     const _requiredEnvVars = ['host', 'port'];
 ///     bool get hasEnv => env.isEveryDefined(_requiredEnvVars);
-export 'package:dotenv/src/dotenv.dart';
+export 'package:dotenv/src/dotenv.dart' show DotEnv, Parser;

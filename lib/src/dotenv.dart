@@ -4,47 +4,63 @@ import 'dart:io';
 
 import 'package:meta/meta.dart';
 
-import 'parser.dart';
+part 'parser.dart';
+
+final _env = <String, String>{
+  ...Platform.environment,
+};
+
+@visibleForTesting
+Map<String, String> get loadedEnv => _env;
 
 /// Loads key-value pairs from a file into a [Map<String, String>].
 ///
 /// The parser will attempt to handle simple variable substitution,
 /// respect single- vs. double-quotes, and ignore `#comments` or the `export` keyword.
 class DotEnv {
-  /// If true, the underlying map will contain the entries of [Platform.environment],
-  /// even after calling [clear].
-  /// Otherwise, it will be empty until populated by [load].
-  final bool includePlatformEnvironment;
+  static late DotEnv _instance;
+  static bool _isInitialized = false;
 
-  /// If true, suppress "file not found" messages on [stderr] during [load].
-  final bool quiet;
+  /// Returns an instance of [DotEnv] with default [DefaultParser].
+  ///
+  /// ```dart
+  /// final myVar = DotEnv.instance['MY_VAR'];
+  /// ```
+  ///
+  /// If you need a custom .env file parser, create a new instance of [DotEnv].
+  ///
+  /// ```dart
+  /// class CustomParser implements Parser {
+  ///   Map<String, String> parse(Iterable<String> lines) {
+  ///     // custom implementation
+  ///  }
+  /// }
+  ///
+  /// final env = DotEnv(CustomParser())..load();
+  static DotEnv get instance {
+    if (!_isInitialized) {
+      _instance = const DotEnv()..load();
+      _isInitialized = true;
+    }
 
-  final _map = <String, String>{};
-
-  DotEnv({this.includePlatformEnvironment = false, this.quiet = false}) {
-    if (includePlatformEnvironment) _addPlatformEnvironment();
+    return _instance;
   }
 
-  /// Provides access to the underlying [Map].
-  ///
-  /// Prefer using [operator[]] to read values.
-  @visibleForTesting
-  Map<String, String> get map => _map;
+  final DefaultParser _parser;
+
+  const DotEnv([this._parser = const DefaultParser()]);
 
   /// Reads the value for [key] from the underlying map.
   ///
   /// Returns `null` if [key] is absent.  See [isDefined].
-  String? operator [](String key) => _map[key];
+  String? operator [](String key) => _env[key];
 
   /// Calls [Map.addAll] on the underlying map.
-  void addAll(Map<String, String> other) => _map.addAll(other);
+  void addAll(Map<String, String> other) => _env.addAll(other);
 
   /// Calls [Map.clear] on the underlying map.
-  ///
-  /// If [includePlatformEnvironment] is true, the entries of [Platform.environment] will be reinserted.
   void clear() {
-    _map.clear();
-    if (includePlatformEnvironment) _addPlatformEnvironment();
+    _env.clear();
   }
 
   /// Equivalent to [operator []] when the underlying map contains [key],
@@ -52,12 +68,12 @@ class DotEnv {
   ///
   /// Otherwise, calls [orElse] and returns the value.
   String getOrElse(String key, String Function() orElse) =>
-      isDefined(key) ? _map[key]! : orElse();
+      isDefined(key) ? _env[key]! : orElse();
 
   /// True if [key] has a nonempty value in the underlying map.
   ///
   /// Differs from [Map.containsKey] by excluding empty values.
-  bool isDefined(String key) => _map[key]?.isNotEmpty ?? false;
+  bool isDefined(String key) => _env[key]?.isNotEmpty ?? false;
 
   /// True if all supplied [vars] have nonempty value; false otherwise.
   ///
@@ -68,23 +84,18 @@ class DotEnv {
   /// to the underlying [Map].
   ///
   /// Logs to [stderr] if any file does not exist; see [quiet].
-  void load(
-      [Iterable<String> filenames = const ['.env'],
-      Parser psr = const Parser()]) {
+  void load([
+    Iterable<String> filenames = const ['.env'],
+  ]) {
     for (var filename in filenames) {
-      var f = File.fromUri(Uri.file(filename));
-      var lines = _verify(f);
-      _map.addAll(psr.parse(lines));
-    }
-  }
+      final uri = Uri.file(filename);
+      final f = File.fromUri(uri);
 
-  void _addPlatformEnvironment() => _map.addAll(Platform.environment);
-
-  List<String> _verify(File f) {
-    if (!f.existsSync()) {
-      if (!quiet) stderr.writeln('[dotenv] Load failed: file not found: $f');
-      return [];
+      if (f.existsSync()) {
+        final content = f.readAsLinesSync();
+        final parsed = _parser.parse(content);
+        _env.addAll(parsed);
+      }
     }
-    return f.readAsLinesSync();
   }
 }
